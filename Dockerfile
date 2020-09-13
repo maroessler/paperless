@@ -4,6 +4,8 @@ LABEL maintainer="The Paperless Project https://github.com/the-paperless-project
       contributors="Guy Addadi <addadi@gmail.com>, Pit Kleyersburg <pitkley@googlemail.com>, \
         Sven Fischer <git-dev@linux4tw.de>"
 
+ARG TARGETPLATFORM
+
 # Copy Pipfiles file, init script and gunicorn.conf
 COPY Pipfile* /usr/src/paperless/
 COPY scripts/docker-entrypoint.sh /sbin/docker-entrypoint.sh
@@ -59,16 +61,27 @@ RUN apk add --no-cache \
 # Setup entrypoint
     chmod 755 /sbin/docker-entrypoint.sh
 
+# s6
+COPY install.sh .
+RUN sh -ex ./install.sh 2>&1
+ENTRYPOINT ["/s6-init", "docker-entrypoint.sh"]
+
+ADD s6/alpine-root /
+
+ENV S6_LOGGING 0
+ENV S6_KEEP_ENV 1
+ENV S6_BEHAVIOUR_IF_STAGE2_FAILS 2
+
 WORKDIR /usr/src/paperless/src
-# Mount volumes and set Entrypoint
+# Mount volumes
 VOLUME ["/usr/src/paperless/data", "/usr/src/paperless/media", "/consume", "/export"]
-ENTRYPOINT ["/sbin/docker-entrypoint.sh"]
-CMD ["--help"]
 
 # Copy application
 COPY src/ /usr/src/paperless/src/
 COPY data/ /usr/src/paperless/data/
 COPY media/ /usr/src/paperless/media/
+
+HEALTHCHECK CMD curl -f http://localhost:8000
 
 # Collect static files
 RUN sudo -HEu paperless /usr/src/paperless/src/manage.py collectstatic --clear --no-input
